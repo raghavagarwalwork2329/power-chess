@@ -286,8 +286,8 @@ function updPoker(){
   document.getElementById("pb2").classList.toggle("on",pkTurn===2);
   var eq=bets[1]===bets[2];
   var ca=Math.max(bets[1],bets[2])-bets[pkTurn];
-  document.getElementById("bCheck").disabled=!eq||!isMyPokerTurn;
-  document.getElementById("bCall").disabled=(eq||ca<=0)||!isMyPokerTurn;
+  document.getElementById("bCheck").disabled=!eq;
+  document.getElementById("bCall").disabled=eq||ca<=0;
   document.getElementById("bCall").textContent=eq?"Call":"Call Rs."+ca;
   var btns=document.querySelectorAll("#pokerBtns button");
   for(var i=0;i<btns.length;i++){if(!btns[i].disabled) btns[i].disabled=!isMyPokerTurn;}
