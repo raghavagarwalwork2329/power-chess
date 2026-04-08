@@ -204,7 +204,7 @@ input.inp{width:100%;padding:10px 12px;font-size:14px;border:1px solid #ddd;bord
 </div>
 </div>
 <script>
-const socket=io();
+const socket=io("https://power-chess-production.up.railway.app",{transports:["websocket","polling"]});
 const PIECES={wK:'&#9812;',wQ:'&#9813;',wR:'&#9814;',wB:'&#9815;',wN:'&#9816;',wP:'&#9817;',bK:'&#9818;',bQ:'&#9819;',bR:'&#9820;',bB:'&#9821;',bN:'&#9822;',bP:'&#9823;'};
 const CDEFS=[
   {id:'ps',name:'Pawn Sacrifice',tier:'blue',desc:'Remove one of your own pawns.',count:14,fx:'ps'},
