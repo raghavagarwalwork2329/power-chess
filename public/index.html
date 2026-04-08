@@ -290,7 +290,7 @@ function updPoker(){
   document.getElementById("bCall").disabled=eq||ca<=0;
   document.getElementById("bCall").textContent=eq?"Call":"Call Rs."+ca;
   var btns=document.querySelectorAll("#pokerBtns button");
-  for(var i=0;i<btns.length;i++){if(!btns[i].disabled) btns[i].disabled=!isMyPokerTurn;}
+  
 }
 
 function renderPkCards(){
