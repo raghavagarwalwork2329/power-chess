@@ -394,8 +394,7 @@ function renderBD(){
 
 function renderMC(){
   var canPlay=(myColor()==="w"?mvW:mvB)>=3&&isMyTurn();
-  document.getElementById("myLbl").textContent="Your cards";
-  document.getElementById("movePill").style.display=(!canPlay&&isMyTurn())?"inline-block":"none";
+  var pill=document.getElementById("movePill");if(pill)pill.style.display=(!canPlay&&isMyTurn())?"inline-block":"none";
   var row=document.getElementById("myCardRow");row.innerHTML="";
   for(var i=0;i<hands[myNum].length;i++){
     var extra=actI===i?"sel":"";
