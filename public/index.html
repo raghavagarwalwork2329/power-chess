@@ -166,7 +166,7 @@ input.inp{width:100%;padding:10px 12px;font-size:14px;border:1px solid #ddd;bord
     <div class="sdp"><h4 id="sdP2lbl">Player 2 - Black</h4><div id="sdP2" style="display:flex;flex-direction:column;gap:5px"></div></div>
   </div>
   <div class="clean-note" style="margin-bottom:12px">Checkmate must be a normal move - power cards cannot deliver the final blow</div>
-  <button class="btn btn-dark" id="beginBtn" style="display:none" onclick="startChess()">Begin chess game</button>
+  <button class="btn btn-dark" id="beginBtn" style="display:none">Begin chess game</button>
   <div class="wait-banner" id="sdWait" style="display:none">Waiting for opponent to start chess...</div>
 </div>
 <div id="s-chess" class="screen">
@@ -342,7 +342,7 @@ function doShowdown(){
   r1.innerHTML="";r2.innerHTML="";
   for(var i=0;i<hands[1].length;i++) r1.appendChild(mkCard(hands[1][i],null,"locked"));
   for(var i=0;i<hands[2].length;i++) r2.appendChild(mkCard(hands[2][i],null,"locked"));
-  if(myNum===1){document.getElementById("beginBtn").style.display="block";document.getElementById("sdWait").style.display="none";}
+  if(myNum===1){var bb=document.getElementById("beginBtn");bb.style.display="block";bb.onclick=function(){startChess();};document.getElementById("sdWait").style.display="none";}
   else{document.getElementById("beginBtn").style.display="none";document.getElementById("sdWait").style.display="block";}
   show("s-showdown");
 }
