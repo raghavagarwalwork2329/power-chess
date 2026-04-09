@@ -402,7 +402,7 @@ function renderMC(){
   var row=document.getElementById("myCardRow");row.innerHTML="";
   for(var i=0;i<hands[myNum].length;i++){
     var extra=actI===i?"sel":"";
-    var fn=canPlay?(function(ii){return function(){selCard(ii);};})(i):null;
+    var _card=hands[myNum][i];var _ok=canPlay||(_card.fx==="ci"&&canCounterIntel&&isMyTurn());var fn=_ok?(function(ii){return function(){selCard(ii);};})(i):null;
     row.appendChild(mkCard(hands[myNum][i],fn,extra));
   }
   var el=document.getElementById("cLog");
@@ -416,7 +416,7 @@ function renderOC2(){
   for(var i=0;i<oppHand.length;i++) row.appendChild(mkOC(oppHand[i]));
 }
 
-var pendingCard=null,preCard=null;
+var pendingCard=null,preCard=null,canCounterIntel=false;
 function takeSnapshot(){
   preCard={BD:BD.map(function(row){return row.slice();}),capt:{w:capt.w.slice(),b:capt.b.slice()},turn:turn,lastMv:lastMv?lastMv.slice():null,epSq:epSq,cR:Object.assign({},cR),mvW:mvW,mvB:mvB,xTurn:xTurn,hands:{1:hands[1].slice(),2:hands[2].slice()}};
 }
@@ -443,6 +443,7 @@ function cancelCard(){
 }
 function confirmCard(){
   if(!pendingCard)return;
+  canCounterIntel=false;
   var p=pendingCard,ci=p.cardIdx;
   takeSnapshot();
   if(p.type==="fw"){
@@ -476,27 +477,31 @@ function confirmCard(){
   }
 }
 function maybeOfferCI(cardName){
-  var myHand=hands[myNum],ciIdx=-1;
-  for(var i=0;i<myHand.length;i++){if(myHand[i].fx==="ci"){ciIdx=i;break;}}
-  if(ciIdx<0)return;
-  setTimeout(function(){
-    if(confirm("Opponent played "+cardName+". Play Counter Intel to negate it?")){
-      restoreSnapshot();
-      hands[myNum].splice(ciIdx,1);
-      actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;
-      showCardButtons(false,false);
-      emit("counter_intel",{player:myNum,ciIdx:ciIdx});
-      logMsg="Counter Intel! Opponent's card negated.";
-      updStatus();renderBD();renderMC();renderOC2();
-    }
-  },250);
+  canCounterIntel=true;
+  var hasCI=false;
+  for(var i=0;i<hands[myNum].length;i++){if(hands[myNum][i].fx==="ci"){hasCI=true;break;}}
+  if(hasCI){logMsg="Opponent played "+cardName+". Click Counter Intel now to undo it!";}
+  renderMC();
 }
 function selCard(i){
   if(!isMyTurn())return;
   if(actI===i){cancelCard();return;}
   if(actI!==null)cancelCard();
   var c=hands[myNum][i];
-  if(c.fx==="ci"){alert("Counter Intel is offered automatically when your opponent plays a card.");return;}
+  if(c.fx==="ci"){
+    if(!canCounterIntel){alert("Counter Intel can only be played immediately after your opponent uses a card.");return;}
+    if(!confirm("Play Counter Intel? This undoes your opponent's last card and returns to their turn."))return;
+    var ciIdx=i;
+    restoreSnapshot();
+    hands[myNum].splice(ciIdx,1);
+    canCounterIntel=false;
+    actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;
+    showCardButtons(false,false);
+    emit("counter_intel",{player:myNum,ciIdx:ciIdx});
+    logMsg="Counter Intel played! Opponent's card undone.";
+    updStatus();renderBD();renderMC();renderOC2();
+    return;
+  }
   if(c.fx==="fw"){
     actI=i;pendingCard={type:"fw",cardIdx:i};
     logMsg="Fog of War selected. Click Confirm to play.";
@@ -676,7 +681,7 @@ function nkMvs(r,c,color){
   return m;
 }
 
-function makeMove(fr,fc,tr,tc){
+function makeMove(fr,fc,tr,tc){canCounterIntel=false;
   var piece=BD[fr][fc],color=piece[0];lastMv=[fr,fc,tr,tc];
   if(BD[tr][tc]&&BD[tr][tc][0]!==color) capt[color==="w"?"b":"w"].push(BD[tr][tc][1]);
   if(piece[1]==="K"){
@@ -766,7 +771,7 @@ function handleRemote(data){
   else if(t==="card_ps"){takeSnapshot();BD[p.r][p.c]=null;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent sacrificed a pawn!";endTurn();renderBD();maybeOfferCI("Pawn Sacrifice");}
   else if(t==="card_pd"){takeSnapshot();BD[p.tr][p.tc]=BD[p.fr][p.fc];BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent double-stepped a pawn!";endTurn();renderBD();maybeOfferCI("Pawn Double Step");}
   else if(t==="card_move"){takeSnapshot();capt=p.capt;BD[p.to[0]][p.to[1]]=BD[p.from[0]][p.from[1]];BD[p.from[0]][p.from[1]]=null;lastMv=[p.from[0],p.from[1],p.to[0],p.to[1]];hands[p.player]=hands[p.player].filter(function(_,i){return i!==p.cardIdx;});logMsg="Opponent played a card!";endTurn();renderBD();maybeOfferCI("a card");}
-  else if(t==="counter_intel"){restoreSnapshot();hands[p.player].splice(p.ciIdx,1);actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;showCardButtons(false,false);logMsg="Opponent played Counter Intel! Your card was negated.";updStatus();renderBD();renderMC();renderOC2();}
+  else if(t==="counter_intel"){canCounterIntel=false;restoreSnapshot();hands[p.player].splice(p.ciIdx,1);actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;showCardButtons(false,false);logMsg="Opponent played Counter Intel! Your card was negated.";updStatus();renderBD();renderMC();renderOC2();}
   else if(t==="game_over"){over=true;setTimeout(function(){endChessGame(p.winner,p.reason);},1200);}
   else if(t==="offer_draw"){if(confirm("Opponent offers a draw. Accept?")) endChessGame(null,"draw");}
   else if(t==="resign"){endChessGame(p.winner,"resign");}
