@@ -67,7 +67,8 @@ input.inp{width:100%;padding:10px 12px;font-size:14px;border:1px solid #ddd;bord
 .ocrd.blue{border-color:#85B7EB}.ocrd.green{border-color:#97C459}.ocrd.red{border-color:#F09595}.ocrd.bk{border-color:#aaa}
 .board-outer{border:2px solid #1a1a1a;border-radius:10px;overflow:hidden;margin-bottom:10px}
 .board{display:grid;grid-template-columns:repeat(8,1fr);width:100%;aspect-ratio:1}
-.sq{display:flex;align-items:center;justify-content:center;font-size:clamp(30px,9vw,68px);line-height:1;cursor:pointer;position:relative;user-select:none}
+.sq.white-piece{color:#fff;-webkit-text-stroke:2px #1a1a1a;text-shadow:0 1px 2px rgba(0,0,0,0.3)}
+.sq{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;font-size:clamp(22px,6.5vw,52px);line-height:1;cursor:pointer;position:relative;user-select:none}
 .sq.l{background:#F0D9B5}.sq.d{background:#B58863}
 .sq.ss{outline:3px solid #27ae60;outline-offset:-3px}
 .sq.vm::after{content:'';position:absolute;width:32%;height:32%;background:rgba(0,0,0,0.2);border-radius:50%;pointer-events:none}
@@ -201,7 +202,7 @@ input.inp{width:100%;padding:10px 12px;font-size:14px;border:1px solid #ddd;bord
 </div>
 <script>
 var socket=io("https://power-chess-production.up.railway.app",{transports:["websocket","polling"]});
-var PIECES={wK:"\u2654",wQ:"\u2655",wR:"\u2656",wB:"\u2657",wN:"\u2658",wP:"\u2659",bK:"\u265A",bQ:"\u265B",bR:"\u265C",bB:"\u265D",bN:"\u265E",bP:"\u265F"};
+var PIECES={wK:"\u265A",wQ:"\u265B",wR:"\u265C",wB:"\u265D",wN:"\u265E",wP:"\u265F",bK:"\u265A",bQ:"\u265B",bR:"\u265C",bB:"\u265D",bN:"\u265E",bP:"\u265F"};
 var CDEFS=[
   {id:"ps",name:"Pawn Sacrifice",tier:"blue",desc:"Remove one of your own pawns.",count:14,fx:"ps"},
   {id:"pd",name:"Pawn Double Step",tier:"blue",desc:"Move any pawn two squares forward.",count:14,fx:"pd"},
@@ -377,7 +378,7 @@ function renderBD(){
       sq.className="sq "+((r+c)%2===0?"l":"d");
       if(sel&&sel[0]===r&&sel[1]===c) sq.classList.add("ss");
       if(lastMv&&((lastMv[0]===r&&lastMv[1]===c)||(lastMv[2]===r&&lastMv[3]===c))) sq.classList.add("lm");
-      if(BD[r][c]) sq.textContent=PIECES[BD[r][c]]||"";
+      if(BD[r][c]){sq.textContent=PIECES[BD[r][c]]||"";if(BD[r][c][0]==="w")sq.classList.add("white-piece");}
       if(waitT&&BD[r][c]&&BD[r][c][0]===turn) sq.classList.add("ct2");
       if(sel&&!waitT){
         var mvs=actFx?cardMvs(sel[0],sel[1],actFx):legalMvs(sel[0],sel[1]);
