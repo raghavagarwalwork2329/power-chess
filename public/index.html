@@ -184,6 +184,10 @@ input.inp{width:100%;padding:10px 12px;font-size:14px;border:1px solid #ddd;bord
     <div class="crow" id="myCardRow"></div>
     <div class="clog" id="cLog"></div>
   </div>
+  <div class="gbtns" id="cardConfirmRow" style="display:none">
+    <button id="cardConfirmBtn" style="background:#1a1a1a;color:#fff;border-color:#1a1a1a" onclick="confirmCard()">Confirm card</button>
+    <button id="cardCancelBtn" onclick="cancelCard()">Cancel</button>
+  </div>
   <div class="gbtns">
     <button onclick="offerDraw()">Offer draw</button>
     <button onclick="resignGame()">Resign</button>
@@ -398,7 +402,7 @@ function renderMC(){
   var row=document.getElementById("myCardRow");row.innerHTML="";
   for(var i=0;i<hands[myNum].length;i++){
     var extra=actI===i?"sel":"";
-    var fn=canPlay&&!waitT&&!cardActive?(function(ii){return function(){selCard(ii);};})(i):null;
+    var fn=canPlay?(function(ii){return function(){selCard(ii);};})(i):null;
     row.appendChild(mkCard(hands[myNum][i],fn,extra));
   }
   var el=document.getElementById("cLog");
@@ -412,21 +416,95 @@ function renderOC2(){
   for(var i=0;i<oppHand.length;i++) row.appendChild(mkOC(oppHand[i]));
 }
 
+var pendingCard=null,preCard=null;
+function takeSnapshot(){
+  preCard={BD:BD.map(function(row){return row.slice();}),capt:{w:capt.w.slice(),b:capt.b.slice()},turn:turn,lastMv:lastMv?lastMv.slice():null,epSq:epSq,cR:Object.assign({},cR),mvW:mvW,mvB:mvB,xTurn:xTurn,hands:{1:hands[1].slice(),2:hands[2].slice()}};
+}
+function restoreSnapshot(){
+  if(!preCard)return;
+  BD=preCard.BD.map(function(row){return row.slice();});
+  capt={w:preCard.capt.w.slice(),b:preCard.capt.b.slice()};
+  turn=preCard.turn;lastMv=preCard.lastMv?preCard.lastMv.slice():null;
+  epSq=preCard.epSq;cR=Object.assign({},preCard.cR);
+  mvW=preCard.mvW;mvB=preCard.mvB;xTurn=preCard.xTurn;
+  hands={1:preCard.hands[1].slice(),2:preCard.hands[2].slice()};
+}
+function showCardButtons(cancelOn,confirmOn){
+  var row=document.getElementById("cardConfirmRow");if(!row)return;
+  row.style.display=(cancelOn||confirmOn)?"flex":"none";
+  var cb=document.getElementById("cardConfirmBtn"),xb=document.getElementById("cardCancelBtn");
+  if(cb)cb.style.display=confirmOn?"block":"none";
+  if(xb)xb.style.display=cancelOn?"block":"none";
+}
+function cancelCard(){
+  actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;
+  logMsg="Card cancelled.";
+  showCardButtons(false,false);renderBD();renderMC();
+}
+function confirmCard(){
+  if(!pendingCard)return;
+  var p=pendingCard,ci=p.cardIdx;
+  takeSnapshot();
+  if(p.type==="fw"){
+    xTurn=true;rmCard(myNum,ci);
+    emit("card_fog",{player:myNum,cardIdx:ci});
+    logMsg="Fog of War! 2 turns in a row.";
+    pendingCard=null;showCardButtons(false,false);renderMC();return;
+  }
+  if(p.type==="ps"){
+    BD[p.r][p.c]=null;rmCard(myNum,ci);
+    emit("card_ps",{r:p.r,c:p.c,player:myNum,cardIdx:ci});
+    logMsg="Pawn sacrificed!";
+    pendingCard=null;actFx=null;showCardButtons(false,false);endTurn();return;
+  }
+  if(p.type==="pd"){
+    var piece=BD[p.fr][p.fc];
+    BD[p.tr][p.tc]=piece;BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];
+    rmCard(myNum,ci);
+    emit("card_pd",{fr:p.fr,fc:p.fc,tr:p.tr,tc:p.tc,player:myNum,cardIdx:ci});
+    logMsg="Pawn double-stepped!";
+    pendingCard=null;actFx=null;showCardButtons(false,false);endTurn();return;
+  }
+  if(p.type==="move"){
+    var tgt=BD[p.tr][p.tc];
+    if(tgt){var oppC=tgt[0]==="w"?"b":"w";capt[oppC].push(tgt[1]);}
+    BD[p.tr][p.tc]=BD[p.fr][p.fc];BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];
+    rmCard(myNum,ci);
+    emit("card_move",{from:[p.fr,p.fc],to:[p.tr,p.tc],player:myNum,cardIdx:ci,capt:capt});
+    logMsg="Card move done!";
+    pendingCard=null;actFx=null;sel=null;cardActive=false;showCardButtons(false,false);endTurn();return;
+  }
+}
+function maybeOfferCI(cardName){
+  var myHand=hands[myNum],ciIdx=-1;
+  for(var i=0;i<myHand.length;i++){if(myHand[i].fx==="ci"){ciIdx=i;break;}}
+  if(ciIdx<0)return;
+  setTimeout(function(){
+    if(confirm("Opponent played "+cardName+". Play Counter Intel to negate it?")){
+      restoreSnapshot();
+      hands[myNum].splice(ciIdx,1);
+      actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;
+      showCardButtons(false,false);
+      emit("counter_intel",{player:myNum,ciIdx:ciIdx});
+      logMsg="Counter Intel! Opponent's card negated.";
+      updStatus();renderBD();renderMC();renderOC2();
+    }
+  },250);
+}
 function selCard(i){
-  if(!isMyTurn()) return;
-  if(actI===i){actI=null;actFx=null;waitT=false;sel=null;cardActive=false;logMsg="Card cancelled.";renderBD();renderMC();return;}
+  if(!isMyTurn())return;
+  if(actI===i){cancelCard();return;}
+  if(actI!==null)cancelCard();
   var c=hands[myNum][i];
+  if(c.fx==="ci"){alert("Counter Intel is offered automatically when your opponent plays a card.");return;}
   if(c.fx==="fw"){
-    if(!confirm("Play Fog of War? (Take 2 turns in a row)"))return;
-    xTurn=true;rmCard(myNum,i);logMsg="Fog of War! 2 turns in a row.";actI=null;emit("card_fog",{player:myNum,cardIdx:i});renderMC();return;
+    actI=i;pendingCard={type:"fw",cardIdx:i};
+    logMsg="Fog of War selected. Click Confirm to play.";
+    showCardButtons(true,true);renderMC();return;
   }
-  if(c.fx==="ci"){
-    if(!confirm("Play Counter Intel? (Negates opponent card)"))return;
-    logMsg="Counter Intel ready.";actI=null;renderMC();return;
-  }
-  actI=i;waitT=true;actFx=c.fx;sel=null;cardActive=false;
-  logMsg=c.name+" - click one of your pieces. (Click card again to cancel)";
-  renderBD();renderMC();
+  actI=i;actFx=c.fx;waitT=true;sel=null;cardActive=false;pendingCard=null;
+  logMsg=c.name+" - click a piece. (Click card again to cancel)";
+  showCardButtons(true,false);renderBD();renderMC();
 }
 
 function doDecoy(){
@@ -451,9 +529,10 @@ function rmCard(player,idx){hands[player].splice(idx,1);actI=null;}
 
 function handleClick(r,c){
   if(over||!isMyTurn()) return;
+  if(pendingCard)return;
   document.getElementById("illBanner").style.display="none";
   if(waitT){handleTarget(r,c);renderBD();renderMC();return;}
-  if(actFx&&sel){
+  if(actFx&&sel&&cardActive){
     var mvs=cardMvs(sel[0],sel[1],actFx);
     for(var i=0;i<mvs.length;i++){
       if(mvs[i][0]===r&&mvs[i][1]===c){
@@ -461,12 +540,9 @@ function handleClick(r,c){
           document.getElementById("illBanner").style.display="block";
           logMsg="Not allowed - checkmate must be a clean move.";renderMC();return;
         }
-        if(BD[r][c]&&BD[r][c][0]!==turn) capt[turn==="w"?"b":"w"].push(BD[r][c][1]);
-        var fr=sel[0],fc=sel[1];
-        BD[r][c]=BD[sel[0]][sel[1]];BD[sel[0]][sel[1]]=null;lastMv=[fr,fc,r,c];
-        var ci=actI;rmCard(myNum,actI);actFx=null;sel=null;cardActive=false;
-        emit("card_move",{from:[fr,fc],to:[r,c],player:myNum,cardIdx:ci,capt:capt});
-        logMsg="Card move done!";endTurn();renderBD();return;
+        pendingCard={type:"move",fr:sel[0],fc:sel[1],tr:r,tc:c,fx:actFx,cardIdx:actI};
+        logMsg="Card move ready. Click Confirm to play.";
+        showCardButtons(true,true);renderBD();renderMC();return;
       }
     }
   }
@@ -486,21 +562,24 @@ function handleClick(r,c){
 function handleTarget(r,c){
   var piece=BD[r][c],color=turn,fx=actFx;
   if(fx==="ps"){
-    if(!piece||piece[0]!==color||piece[1]!=="P"){logMsg="Pick one of your pawns.";return;}
-    BD[r][c]=null;var ci=actI;rmCard(myNum,actI);waitT=false;actFx=null;
-    emit("card_ps",{r:r,c:c,player:myNum,cardIdx:ci});logMsg="Pawn sacrificed!";endTurn();return;
+    if(!piece||piece[0]!==color||piece[1]!=="P"){logMsg="Pick one of your pawns.";renderMC();return;}
+    pendingCard={type:"ps",r:r,c:c,cardIdx:actI};waitT=false;
+    logMsg="Pawn Sacrifice ready. Click Confirm to play.";
+    showCardButtons(true,true);renderBD();renderMC();return;
   }
   if(fx==="pd"){
-    if(!piece||piece[0]!==color||piece[1]!=="P"){logMsg="Pick one of your pawns.";return;}
+    if(!piece||piece[0]!==color||piece[1]!=="P"){logMsg="Pick one of your pawns.";renderMC();return;}
     var dir=color==="w"?-1:1,nr=r+dir*2;
-    if(nr<0||nr>7||BD[r+dir][c]||BD[nr][c]){logMsg="Cannot double-step this pawn.";return;}
-    BD[nr][c]=piece;BD[r][c]=null;lastMv=[r,c,nr,c];
-    var ci=actI;rmCard(myNum,actI);waitT=false;actFx=null;
-    emit("card_pd",{fr:r,fc:c,tr:nr,tc:c,player:myNum,cardIdx:ci});logMsg="Pawn double-stepped!";endTurn();return;
+    if(nr<0||nr>7||BD[r+dir][c]||BD[nr][c]){logMsg="Cannot double-step this pawn.";renderMC();return;}
+    pendingCard={type:"pd",fr:r,fc:c,tr:nr,tc:c,cardIdx:actI};waitT=false;
+    logMsg="Pawn Double Step ready. Click Confirm to play.";
+    showCardButtons(true,true);renderBD();renderMC();return;
   }
   if(fx==="sm"||fx==="ff"||fx==="xr"||fx==="km"){
-    if(!piece||piece[0]!==color){logMsg="Pick one of your own pieces.";return;}
-    waitT=false;cardActive=true;sel=[r,c];logMsg="Now move the piece.";renderBD();renderMC();return;
+    if(!piece||piece[0]!==color){logMsg="Pick one of your own pieces.";renderMC();return;}
+    waitT=false;cardActive=true;sel=[r,c];
+    logMsg="Now click the destination square.";
+    showCardButtons(true,false);renderBD();renderMC();return;
   }
 }
 
@@ -682,11 +761,12 @@ function handleRemote(data){
   else if(t==="poker_raise"){chips=p.chips;pot=p.pot;bets=p.bets;pkPhase=p.pkPhase;pkTurn=p.pkTurn;isMyPokerTurn=(myNum===pkTurn);document.getElementById("pkLog").textContent="Opponent raised Rs."+p.amt+"!";showTurnBanner();updPoker();}
   else if(t==="chess_start"){startChess();}
   else if(t==="move"){makeMove(p.fr,p.fc,p.tr,p.tc);renderBD();}
-  else if(t==="card_fog"){xTurn=true;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent played Fog of War!";renderMC();renderOC2();}
+  else if(t==="card_fog"){takeSnapshot();xTurn=true;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent played Fog of War!";renderMC();renderOC2();maybeOfferCI("Fog of War");}
   else if(t==="card_decoy"){BD[p.r][p.c]=p.color+p.piece;capt[p.color].pop();hands[p.player]=hands[p.player].filter(function(_,i){return i!==p.cardIdx;});logMsg="Opponent used The Decoy!";endTurn();renderBD();}
-  else if(t==="card_ps"){BD[p.r][p.c]=null;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent sacrificed a pawn!";endTurn();renderBD();}
-  else if(t==="card_pd"){BD[p.tr][p.tc]=BD[p.fr][p.fc];BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent double-stepped a pawn!";endTurn();renderBD();}
-  else if(t==="card_move"){capt=p.capt;BD[p.to[0]][p.to[1]]=BD[p.from[0]][p.from[1]];BD[p.from[0]][p.from[1]]=null;lastMv=[p.from[0],p.from[1],p.to[0],p.to[1]];hands[p.player]=hands[p.player].filter(function(_,i){return i!==p.cardIdx;});logMsg="Opponent played a card!";endTurn();renderBD();}
+  else if(t==="card_ps"){takeSnapshot();BD[p.r][p.c]=null;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent sacrificed a pawn!";endTurn();renderBD();maybeOfferCI("Pawn Sacrifice");}
+  else if(t==="card_pd"){takeSnapshot();BD[p.tr][p.tc]=BD[p.fr][p.fc];BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent double-stepped a pawn!";endTurn();renderBD();maybeOfferCI("Pawn Double Step");}
+  else if(t==="card_move"){takeSnapshot();capt=p.capt;BD[p.to[0]][p.to[1]]=BD[p.from[0]][p.from[1]];BD[p.from[0]][p.from[1]]=null;lastMv=[p.from[0],p.from[1],p.to[0],p.to[1]];hands[p.player]=hands[p.player].filter(function(_,i){return i!==p.cardIdx;});logMsg="Opponent played a card!";endTurn();renderBD();maybeOfferCI("a card");}
+  else if(t==="counter_intel"){restoreSnapshot();hands[p.player].splice(p.ciIdx,1);actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;showCardButtons(false,false);logMsg="Opponent played Counter Intel! Your card was negated.";updStatus();renderBD();renderMC();renderOC2();}
   else if(t==="game_over"){over=true;setTimeout(function(){endChessGame(p.winner,p.reason);},1200);}
   else if(t==="offer_draw"){if(confirm("Opponent offers a draw. Accept?")) endChessGame(null,"draw");}
   else if(t==="resign"){endChessGame(p.winner,"resign");}
