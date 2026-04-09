@@ -67,7 +67,7 @@ input.inp{width:100%;padding:10px 12px;font-size:14px;border:1px solid #ddd;bord
 .ocrd.blue{border-color:#85B7EB}.ocrd.green{border-color:#97C459}.ocrd.red{border-color:#F09595}.ocrd.bk{border-color:#aaa}
 .board-outer{border:2px solid #1a1a1a;border-radius:10px;overflow:hidden;margin-bottom:10px}
 .board{display:grid;grid-template-columns:repeat(8,1fr);width:100%;aspect-ratio:1}
-.sq{display:flex;align-items:center;justify-content:center;font-size:clamp(14px,3.2vw,32px);cursor:pointer;position:relative;user-select:none}
+.sq{display:flex;align-items:center;justify-content:center;font-size:clamp(30px,9vw,68px);line-height:1;cursor:pointer;position:relative;user-select:none}
 .sq.l{background:#F0D9B5}.sq.d{background:#B58863}
 .sq.ss{outline:3px solid #27ae60;outline-offset:-3px}
 .sq.vm::after{content:'';position:absolute;width:32%;height:32%;background:rgba(0,0,0,0.2);border-radius:50%;pointer-events:none}
@@ -206,7 +206,6 @@ var CDEFS=[
   {id:"ps",name:"Pawn Sacrifice",tier:"blue",desc:"Remove one of your own pawns.",count:14,fx:"ps"},
   {id:"pd",name:"Pawn Double Step",tier:"blue",desc:"Move any pawn two squares forward.",count:14,fx:"pd"},
   {id:"ff",name:"Friendly Fire",tier:"green",desc:"Capture one of your own pieces.",count:10,fx:"ff"},
-  {id:"dc",name:"The Decoy",tier:"green",desc:"Place your last captured piece back on your back two rows.",count:8,fx:"dc"},
   {id:"sm",name:"Stealth Mode",tier:"green",desc:"Piece travels through friendly pieces for one move.",count:6,fx:"sm"},
   {id:"ci",name:"Counter Intel",tier:"bk",desc:"Negate opponent card.",count:3,fx:"ci"},
   {id:"xr",name:"X-Ray Vision",tier:"red",desc:"Piece passes through any pieces for one move.",count:2,fx:"xr"},
@@ -414,11 +413,19 @@ function renderOC2(){
 
 function selCard(i){
   if(!isMyTurn()) return;
-  var c=hands[myNum][i];actI=i;
-  if(c.fx==="fw"){xTurn=true;rmCard(myNum,i);logMsg="Fog of War! 2 turns in a row.";actI=null;emit("card_fog",{player:myNum,cardIdx:i});renderMC();return;}
-  if(c.fx==="ci"){logMsg="Counter Intel: play in response to opponent card.";actI=null;renderMC();return;}
-  if(c.fx==="dc"){doDecoy();return;}
-  waitT=true;actFx=c.fx;logMsg=c.name+" - click one of your pieces.";renderBD();renderMC();
+  if(actI===i){actI=null;actFx=null;waitT=false;sel=null;cardActive=false;logMsg="Card cancelled.";renderBD();renderMC();return;}
+  var c=hands[myNum][i];
+  if(c.fx==="fw"){
+    if(!confirm("Play Fog of War? (Take 2 turns in a row)"))return;
+    xTurn=true;rmCard(myNum,i);logMsg="Fog of War! 2 turns in a row.";actI=null;emit("card_fog",{player:myNum,cardIdx:i});renderMC();return;
+  }
+  if(c.fx==="ci"){
+    if(!confirm("Play Counter Intel? (Negates opponent card)"))return;
+    logMsg="Counter Intel ready.";actI=null;renderMC();return;
+  }
+  actI=i;waitT=true;actFx=c.fx;sel=null;cardActive=false;
+  logMsg=c.name+" - click one of your pieces. (Click card again to cancel)";
+  renderBD();renderMC();
 }
 
 function doDecoy(){
@@ -507,21 +514,67 @@ function wouldCMCard(fr,fc,tr,tc){
 }
 
 function cardMvs(r,c,fx){
-  var piece=BD[r][c],color=piece[0],mvs=[];
-  if(fx==="sm"){
-    var rm=rawMvs(r,c);
-    for(var i=0;i<rm.length;i++){if(!BD[rm[i][0]][rm[i][1]]||BD[rm[i][0]][rm[i][1]][0]!==color) mvs.push(rm[i]);}
-  } else if(fx==="xr"){
-    var qm=qRaw(r,c);
-    for(var i=0;i<qm.length;i++){if(!BD[qm[i][0]][qm[i][1]]||BD[qm[i][0]][qm[i][1]][0]!==color) mvs.push(qm[i]);}
-    var nk=nkMvs(r,c,color);for(var i=0;i<nk.length;i++) mvs.push(nk[i]);
-  } else if(fx==="ff"){
-    for(var rr=0;rr<8;rr++) for(var cc=0;cc<8;cc++) if(BD[rr][cc]&&BD[rr][cc][0]===color&&!(rr===r&&cc===c)) mvs.push([rr,cc]);
-  } else if(fx==="km"){
-    var qm2=qRaw(r,c);
-    for(var i=0;i<qm2.length;i++){if(!BD[qm2[i][0]][qm2[i][1]]||BD[qm2[i][0]][qm2[i][1]][0]!==color) mvs.push(qm2[i]);}
+  var piece=BD[r][c];if(!piece)return[];
+  var color=piece[0],type=piece[1],m=[];
+  var diags=[[-1,-1],[-1,1],[1,-1],[1,1]],straights=[[-1,0],[1,0],[0,-1],[0,1]];
+  if(fx==="km"){
+    var allD=diags.concat(straights);
+    for(var d=0;d<allD.length;d++){
+      var nr=r+allD[d][0],nc=c+allD[d][1];
+      while(nr>=0&&nr<8&&nc>=0&&nc<8){
+        if(BD[nr][nc]){if(BD[nr][nc][0]!==color)m.push([nr,nc]);break;}
+        m.push([nr,nc]);nr+=allD[d][0];nc+=allD[d][1];
+      }
+    }
+    return m;
   }
-  return mvs;
+  function slide(dirs){
+    for(var d=0;d<dirs.length;d++){
+      var nr=r+dirs[d][0],nc=c+dirs[d][1];
+      while(nr>=0&&nr<8&&nc>=0&&nc<8){
+        var occ=BD[nr][nc];
+        if(!occ){if(fx!=="ff")m.push([nr,nc]);}
+        else if(fx==="xr"){if(occ[0]!==color)m.push([nr,nc]);}
+        else if(fx==="sm"){if(occ[0]!==color){m.push([nr,nc]);break;}}
+        else if(fx==="ff"){if(occ[0]===color)m.push([nr,nc]);break;}
+        nr+=dirs[d][0];nc+=dirs[d][1];
+      }
+    }
+  }
+  function step(deltas){
+    for(var i=0;i<deltas.length;i++){
+      var nr=r+deltas[i][0],nc=c+deltas[i][1];
+      if(nr<0||nr>=8||nc<0||nc>=8)continue;
+      var occ=BD[nr][nc];
+      if(!occ){if(fx!=="ff")m.push([nr,nc]);}
+      else if(fx==="xr"){if(occ[0]!==color)m.push([nr,nc]);}
+      else if(fx==="sm"){if(occ[0]!==color)m.push([nr,nc]);}
+      else if(fx==="ff"){if(occ[0]===color)m.push([nr,nc]);}
+    }
+  }
+  if(type==="P"){
+    var dir=color==="w"?-1:1;
+    if(fx==="sm"||fx==="xr"){
+      var nr1=r+dir;
+      if(nr1>=0&&nr1<8&&!BD[nr1][c]){m.push([nr1,c]);
+        var sr=color==="w"?6:1;
+        if(r===sr&&!BD[r+2*dir][c])m.push([r+2*dir,c]);
+      }
+    }
+    for(var dcc=-1;dcc<=1;dcc+=2){
+      var nrd=r+dir,ncd=c+dcc;
+      if(nrd<0||nrd>=8||ncd<0||ncd>=8)continue;
+      var occd=BD[nrd][ncd];
+      if(fx==="ff"){if(occd&&occd[0]===color)m.push([nrd,ncd]);}
+      else if(fx==="xr"){if(!occd||occd[0]!==color)m.push([nrd,ncd]);}
+      else if(fx==="sm"){if(occd&&occd[0]!==color)m.push([nrd,ncd]);}
+    }
+  }
+  if(type==="N"){step([[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]);}
+  if(type==="B"||type==="Q"){slide(diags);}
+  if(type==="R"||type==="Q"){slide(straights);}
+  if(type==="K"){step([[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]);}
+  return m;
 }
 
 function qRaw(r,c){
