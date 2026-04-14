@@ -424,7 +424,7 @@ function renderOC2(){
 
 var pendingCard=null,preCard=null,canCounterIntel=false,bksFirst=null,thFirst=null,jailedW={},jailedB={},shieldedW={},shieldedB={};
 function takeSnapshot(){
-  preCard={BD:BD.map(function(row){return row.slice();}),capt:{w:capt.w.slice(),b:capt.b.slice()},turn:turn,lastMv:lastMv?lastMv.slice():null,epSq:epSq,cR:Object.assign({},cR),mvW:mvW,mvB:mvB,xTurn:xTurn,hands:{1:hands[1].slice(),2:hands[2].slice()},jailedW:Object.assign({},jailedW),jailedB:Object.assign({},jailedB),shieldedW:Object.assign({},shieldedW),shieldedB:Object.assign({},shieldedB)};
+  preCard={BD:BD.map(function(row){return row.slice();}),capt:{w:capt.w.slice(),b:capt.b.slice()},turn:turn,lastMv:lastMv?lastMv.slice():null,epSq:epSq,cR:Object.assign({},cR),mvW:mvW,mvB:mvB,xTurn:xTurn,jailedW:Object.assign({},jailedW),jailedB:Object.assign({},jailedB),shieldedW:Object.assign({},shieldedW),shieldedB:Object.assign({},shieldedB)};
 }
 function restoreSnapshot(){
   if(!preCard)return;
@@ -433,7 +433,6 @@ function restoreSnapshot(){
   turn=preCard.turn;lastMv=preCard.lastMv?preCard.lastMv.slice():null;
   epSq=preCard.epSq;cR=Object.assign({},preCard.cR);
   mvW=preCard.mvW;mvB=preCard.mvB;xTurn=preCard.xTurn;
-  hands={1:preCard.hands[1].slice(),2:preCard.hands[2].slice()};
   jailedW=Object.assign({},preCard.jailedW);jailedB=Object.assign({},preCard.jailedB);
   shieldedW=Object.assign({},preCard.shieldedW);shieldedB=Object.assign({},preCard.shieldedB);
 }
