@@ -618,7 +618,7 @@ function handleClick(r,c){
     var mvs2=legalMvs(sel[0],sel[1]);
     for(var j=0;j<mvs2.length;j++){
       if(mvs2[j][0]===r&&mvs2[j][1]===c){
-        canCounterIntel=false;emit("move",{fr:sel[0],fc:sel[1],tr:r,tc:c});
+        emit("move",{fr:sel[0],fc:sel[1],tr:r,tc:c});
         makeMove(sel[0],sel[1],r,c);sel=null;renderBD();return;
       }
     }
@@ -802,7 +802,7 @@ function nkMvs(r,c,color){
   return m;
 }
 
-function makeMove(fr,fc,tr,tc){
+function makeMove(fr,fc,tr,tc){canCounterIntel=false;
   var piece=BD[fr][fc],color=piece[0];lastMv=[fr,fc,tr,tc];
   if(BD[tr][tc]&&BD[tr][tc][0]!==color) capt[color==="w"?"b":"w"].push(BD[tr][tc][1]);
   if(piece[1]==="K"){
@@ -904,14 +904,14 @@ function handleRemote(data){
   else if(t==="move"){makeMove(p.fr,p.fc,p.tr,p.tc);renderBD();}
   else if(t==="card_fog"){takeSnapshot();xTurn=true;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent played Fog of War!";renderMC();renderOC2();maybeOfferCI("Fog of War");}
   else if(t==="card_decoy"){BD[p.r][p.c]=p.color+p.piece;capt[p.color].pop();hands[p.player]=hands[p.player].filter(function(_,i){return i!==p.cardIdx;});logMsg="Opponent used The Decoy!";endTurn();renderBD();}
-  else if(t==="card_ps"){takeSnapshot();BD[p.r][p.c]=null;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent sacrificed a pawn!";renderBD();renderMC();renderOC2();maybeOfferCI("Pawn Sacrifice");}
+  else if(t==="card_ps"){takeSnapshot();BD[p.r][p.c]=null;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent sacrificed a pawn!";endTurn();renderBD();maybeOfferCI("Pawn Sacrifice");}
   else if(t==="card_pd"){takeSnapshot();BD[p.tr][p.tc]=BD[p.fr][p.fc];BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent double-stepped a pawn!";endTurn();renderBD();maybeOfferCI("Pawn Double Step");}
   else if(t==="card_move"){takeSnapshot();capt=p.capt;BD[p.to[0]][p.to[1]]=BD[p.from[0]][p.from[1]];BD[p.from[0]][p.from[1]]=null;lastMv=[p.from[0],p.from[1],p.to[0],p.to[1]];hands[p.player]=hands[p.player].filter(function(_,i){return i!==p.cardIdx;});logMsg="Opponent played a card!";endTurn();renderBD();maybeOfferCI("a card");}
-  else if(t==="card_shield"){takeSnapshot();var scr=BD[p.r][p.c][0];(scr==="w"?shieldedW:shieldedB)[p.r+","+p.c]=2;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Piece Shield!";renderBD();renderMC();renderOC2();maybeOfferCI("Piece Shield");}
+  else if(t==="card_shield"){takeSnapshot();var scr=BD[p.r][p.c][0];(scr==="w"?shieldedW:shieldedB)[p.r+","+p.c]=2;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Piece Shield!";endTurn();renderBD();maybeOfferCI("Piece Shield");}
   else if(t==="card_th"){takeSnapshot();BD[p.tr][p.tc]=BD[p.fr][p.fc];BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Teleport Home!";endTurn();renderBD();maybeOfferCI("Teleport Home");}
   else if(t==="card_storm"){takeSnapshot();for(var _mi=0;_mi<p.moves.length;_mi++){var _mm=p.moves[_mi];BD[_mm[2]][_mm[3]]=BD[_mm[0]][_mm[1]];BD[_mm[0]][_mm[1]]=null;}hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Pawn Storm!";endTurn();renderBD();maybeOfferCI("Pawn Storm");}
-  else if(t==="card_bks"){takeSnapshot();var fpbks=BD[p.fr][p.fc],tpbks=BD[p.tr][p.tc];BD[p.fr][p.fc]=tpbks;BD[p.tr][p.tc]=fpbks;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Bishop-Knight Swap!";renderBD();renderMC();renderOC2();maybeOfferCI("Bishop-Knight Swap");}
-  else if(t==="card_jail"){takeSnapshot();var vcr=BD[p.r][p.c][0];(vcr==="w"?jailedW:jailedB)[p.r+","+p.c]=2;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Go to Jail!";renderBD();renderMC();renderOC2();maybeOfferCI("Go to Jail");}
+  else if(t==="card_bks"){takeSnapshot();var fpbks=BD[p.fr][p.fc],tpbks=BD[p.tr][p.tc];BD[p.fr][p.fc]=tpbks;BD[p.tr][p.tc]=fpbks;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Bishop-Knight Swap!";endTurn();renderBD();maybeOfferCI("Bishop-Knight Swap");}
+  else if(t==="card_jail"){takeSnapshot();var vcr=BD[p.r][p.c][0];(vcr==="w"?jailedW:jailedB)[p.r+","+p.c]=3;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Go to Jail!";endTurn();renderBD();maybeOfferCI("Go to Jail");}
   else if(t==="counter_intel"){canCounterIntel=false;restoreSnapshot();hands[p.player].splice(p.ciIdx,1);actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;showCardButtons(false,false);logMsg="Opponent played Counter Intel! Your card was negated.";updStatus();renderBD();renderMC();renderOC2();}
   else if(t==="game_over"){over=true;setTimeout(function(){endChessGame(p.winner,p.reason);},1200);}
   else if(t==="offer_draw"){if(confirm("Opponent offers a draw. Accept?")) endChessGame(null,"draw");}
