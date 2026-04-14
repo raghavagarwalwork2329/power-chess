@@ -388,7 +388,7 @@ function renderBD(){
       sq.className="sq "+((r+c)%2===0?"l":"d");
       if(sel&&sel[0]===r&&sel[1]===c) sq.classList.add("ss");
       if(lastMv&&((lastMv[0]===r&&lastMv[1]===c)||(lastMv[2]===r&&lastMv[3]===c))) sq.classList.add("lm");
-      if(BD[r][c]){sq.textContent=PIECES[BD[r][c]]||"";if(BD[r][c][0]==="w")sq.classList.add("white-piece");var _shB=BD[r][c][0]==="w"?shieldedW:shieldedB;if(_shB[r+","+c])sq.classList.add("shielded");}
+      if(BD[r][c]){sq.textContent=PIECES[BD[r][c]]||"";if(BD[r][c][0]==="w")sq.classList.add("white-piece");var _shB=BD[r][c][0]==="w"?shieldedW:shieldedB;if(_shB[r+","+c])sq.classList.add("shielded");var _jl=BD[r][c][0]==="w"?jailedW:jailedB;if(_jl[r+","+c])sq.classList.add("jailed");}
       if(waitT&&BD[r][c]&&BD[r][c][0]===turn) sq.classList.add("ct2");
       if(sel&&!waitT){
         var mvs=actFx?cardMvs(sel[0],sel[1],actFx):legalMvs(sel[0],sel[1]);
