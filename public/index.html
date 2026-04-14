@@ -68,6 +68,7 @@ input.inp{width:100%;padding:10px 12px;font-size:14px;border:1px solid #ddd;bord
 .board-outer{border:2px solid #1a1a1a;border-radius:10px;overflow:hidden;margin-bottom:10px}
 .board{display:grid;grid-template-columns:repeat(8,1fr);width:100%;aspect-ratio:1}
 .sq.white-piece{color:#fff;-webkit-text-stroke:0;text-shadow:0 2px 5px rgba(0,0,0,0.55)}
+.sq.shielded::before{content:"";position:absolute;top:6%;left:6%;right:6%;bottom:6%;border-radius:50%;box-shadow:0 0 0 3px #3498db,0 0 14px 5px rgba(52,152,219,0.7);pointer-events:none;z-index:0}
 .sq{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;font-size:clamp(22px,6.5vw,52px);line-height:1;cursor:pointer;position:relative;user-select:none}
 .sq.l{background:#F0D9B5}.sq.d{background:#B58863}
 .sq.ss{outline:3px solid #27ae60;outline-offset:-3px}
@@ -210,14 +211,16 @@ var PIECES={wK:"\u265A",wQ:"\u265B",wR:"\u265C",wB:"\u265D",wN:"\u265E",wP:"\u26
 var CDEFS=[
   {id:"ps",name:"Pawn Sacrifice",tier:"blue",desc:"Remove one of your own pawns.",count:5,fx:"ps"},
   {id:"pd",name:"Pawn Double Step",tier:"blue",desc:"Move any pawn two squares forward.",count:5,fx:"pd"},
-  {id:"ff",name:"Friendly Fire",tier:"green",desc:"Capture one of your own pieces.",count:10,fx:"ff"},
+  {id:"ff",name:"Friendly Fire",tier:"green",desc:"Capture one of your own pieces.",count:6,fx:"ff"},
   {id:"sm",name:"Stealth Mode",tier:"green",desc:"Piece travels through friendly pieces for one move.",count:6,fx:"sm"},
   {id:"bks",name:"Bishop-Knight Swap",tier:"green",desc:"Swap one of your bishops with one of your knights.",count:6,fx:"bks"},
   {id:"jail",name:"Go to Jail",tier:"green",desc:"Lock one opponent piece for their next 2 turns.",count:6,fx:"jail"},
   {id:"opr",name:"OP Rook",tier:"green",desc:"For one move, your rook moves like a queen.",count:6,fx:"opr"},
-  {id:"ci",name:"Counter Intel",tier:"bk",desc:"Negate opponent card.",count:3,fx:"ci"},
+  {id:"th",name:"Teleport Home",tier:"green",desc:"Send one of your pieces back to an empty square on your last row.",count:5,fx:"th"},
+  {id:"sh",name:"Piece Shield",tier:"green",desc:"Protect one of your pieces from capture for 2 opponent turns.",count:4,fx:"sh"},
+  {id:"ci",name:"Counter Intel",tier:"bk",desc:"Negate opponent card.",count:5,fx:"ci"},
   {id:"xr",name:"X-Ray Vision",tier:"red",desc:"Piece passes through any pieces for one move.",count:2,fx:"xr"},
-  {id:"km",name:"King's Mistress",tier:"red",desc:"Any piece moves as a queen for one move.",count:2,fx:"km"},
+  {id:"storm",name:"Pawn Storm",tier:"red",desc:"All your unblocked pawns advance one square.",count:3,fx:"storm"},
   {id:"fw",name:"Fog of War",tier:"bk",desc:"Take 2 turns in a row.",count:1,fx:"fw"}
 ];
 var myNum=null,roomId=null,isMyPokerTurn=false;
@@ -364,7 +367,7 @@ function initBD(){
 function startChess(){
   initBD();capt={w:[],b:[]};turn="w";sel=null;over=false;lastMv=null;epSq=null;
   cR={wK:true,wQ:true,bK:true,bQ:true};mvW=0;mvB=0;xTurn=false;
-  actI=null;actFx=null;waitT=false;cardActive=false;logMsg="";bksFirst=null;jailedW={};jailedB={};canCounterIntel=false;
+  actI=null;actFx=null;waitT=false;cardActive=false;logMsg="";bksFirst=null;thFirst=null;jailedW={};jailedB={};shieldedW={};shieldedB={};canCounterIntel=false;
   document.getElementById("chRound").textContent=roundN;
   document.getElementById("chPot").textContent=pot;
   document.getElementById("illBanner").style.display="none";
@@ -385,7 +388,7 @@ function renderBD(){
       sq.className="sq "+((r+c)%2===0?"l":"d");
       if(sel&&sel[0]===r&&sel[1]===c) sq.classList.add("ss");
       if(lastMv&&((lastMv[0]===r&&lastMv[1]===c)||(lastMv[2]===r&&lastMv[3]===c))) sq.classList.add("lm");
-      if(BD[r][c]){sq.textContent=PIECES[BD[r][c]]||"";if(BD[r][c][0]==="w")sq.classList.add("white-piece");}
+      if(BD[r][c]){sq.textContent=PIECES[BD[r][c]]||"";if(BD[r][c][0]==="w")sq.classList.add("white-piece");var _shB=BD[r][c][0]==="w"?shieldedW:shieldedB;if(_shB[r+","+c])sq.classList.add("shielded");}
       if(waitT&&BD[r][c]&&BD[r][c][0]===turn) sq.classList.add("ct2");
       if(sel&&!waitT){
         var mvs=actFx?cardMvs(sel[0],sel[1],actFx):legalMvs(sel[0],sel[1]);
@@ -419,9 +422,9 @@ function renderOC2(){
   for(var i=0;i<oppHand.length;i++) row.appendChild(mkOC(oppHand[i]));
 }
 
-var pendingCard=null,preCard=null,canCounterIntel=false,bksFirst=null,jailedW={},jailedB={};
+var pendingCard=null,preCard=null,canCounterIntel=false,bksFirst=null,thFirst=null,jailedW={},jailedB={},shieldedW={},shieldedB={};
 function takeSnapshot(){
-  preCard={BD:BD.map(function(row){return row.slice();}),capt:{w:capt.w.slice(),b:capt.b.slice()},turn:turn,lastMv:lastMv?lastMv.slice():null,epSq:epSq,cR:Object.assign({},cR),mvW:mvW,mvB:mvB,xTurn:xTurn,hands:{1:hands[1].slice(),2:hands[2].slice()},jailedW:Object.assign({},jailedW),jailedB:Object.assign({},jailedB)};
+  preCard={BD:BD.map(function(row){return row.slice();}),capt:{w:capt.w.slice(),b:capt.b.slice()},turn:turn,lastMv:lastMv?lastMv.slice():null,epSq:epSq,cR:Object.assign({},cR),mvW:mvW,mvB:mvB,xTurn:xTurn,hands:{1:hands[1].slice(),2:hands[2].slice()},jailedW:Object.assign({},jailedW),jailedB:Object.assign({},jailedB),shieldedW:Object.assign({},shieldedW),shieldedB:Object.assign({},shieldedB)};
 }
 function restoreSnapshot(){
   if(!preCard)return;
@@ -432,6 +435,7 @@ function restoreSnapshot(){
   mvW=preCard.mvW;mvB=preCard.mvB;xTurn=preCard.xTurn;
   hands={1:preCard.hands[1].slice(),2:preCard.hands[2].slice()};
   jailedW=Object.assign({},preCard.jailedW);jailedB=Object.assign({},preCard.jailedB);
+  shieldedW=Object.assign({},preCard.shieldedW);shieldedB=Object.assign({},preCard.shieldedB);
 }
 function showCardButtons(cancelOn,confirmOn){
   var row=document.getElementById("cardConfirmRow");if(!row)return;
@@ -441,7 +445,7 @@ function showCardButtons(cancelOn,confirmOn){
   if(xb)xb.style.display=cancelOn?"block":"none";
 }
 function cancelCard(){
-  actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;bksFirst=null;
+  actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;bksFirst=null;thFirst=null;
   logMsg="Card cancelled.";
   showCardButtons(false,false);renderBD();renderMC();
 }
@@ -495,6 +499,40 @@ function confirmCard(){
     logMsg="Bishop-Knight Swap done!";
     pendingCard=null;actFx=null;showCardButtons(false,false);endTurn();return;
   }
+  if(p.type==="sh"){
+    var sc=BD[p.r][p.c][0];
+    (sc==="w"?shieldedW:shieldedB)[p.r+","+p.c]=2;
+    rmCard(myNum,ci);
+    emit("card_shield",{r:p.r,c:p.c,player:myNum,cardIdx:ci});
+    logMsg="Piece shielded!";
+    pendingCard=null;actFx=null;showCardButtons(false,false);endTurn();return;
+  }
+  if(p.type==="th"){
+    var piece2=BD[p.fr][p.fc];
+    BD[p.tr][p.tc]=piece2;BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];
+    rmCard(myNum,ci);
+    emit("card_th",{fr:p.fr,fc:p.fc,tr:p.tr,tc:p.tc,player:myNum,cardIdx:ci});
+    logMsg="Teleport Home done!";
+    pendingCard=null;actFx=null;showCardButtons(false,false);endTurn();return;
+  }
+  if(p.type==="storm"){
+    var myc=myColor(),dir=myc==="w"?-1:1;
+    var sOrder=[];
+    for(var rr=0;rr<8;rr++)for(var cc=0;cc<8;cc++)if(BD[rr][cc]===myc+"P")sOrder.push([rr,cc]);
+    sOrder.sort(function(a,b){return myc==="w"?a[0]-b[0]:b[0]-a[0];});
+    var sMoves=[];
+    for(var oi=0;oi<sOrder.length;oi++){
+      var srr=sOrder[oi][0],scc=sOrder[oi][1],nrr=srr+dir;
+      if(nrr<0||nrr>=8)continue;
+      if(BD[nrr][scc])continue;
+      BD[nrr][scc]=BD[srr][scc];BD[srr][scc]=null;
+      sMoves.push([srr,scc,nrr,scc]);
+    }
+    rmCard(myNum,ci);
+    emit("card_storm",{moves:sMoves,player:myNum,cardIdx:ci});
+    logMsg="Pawn Storm! "+sMoves.length+" pawns advanced.";
+    pendingCard=null;actFx=null;showCardButtons(false,false);endTurn();return;
+  }
 }
 function maybeOfferCI(cardName){
   canCounterIntel=true;
@@ -527,8 +565,13 @@ function selCard(i){
     logMsg="Fog of War selected. Click Confirm to play.";
     showCardButtons(true,true);renderMC();return;
   }
-  actI=i;actFx=c.fx;waitT=true;sel=null;cardActive=false;pendingCard=null;bksFirst=null;
-  logMsg=c.name+(c.fx==="bks"?" - click one of your bishops or knights.":c.fx==="jail"?" - click one of your opponent's pieces.":c.fx==="opr"?" - click one of your rooks.":" - click one of your pieces. (Click card again to cancel)");
+  if(c.fx==="storm"){
+    actI=i;pendingCard={type:"storm",cardIdx:i};
+    logMsg="Pawn Storm selected. Click Confirm to play.";
+    showCardButtons(true,true);renderMC();return;
+  }
+  actI=i;actFx=c.fx;waitT=true;sel=null;cardActive=false;pendingCard=null;bksFirst=null;thFirst=null;
+  logMsg=c.name+(c.fx==="bks"?" - click a bishop or knight.":c.fx==="jail"?" - click an opponent piece to jail.":c.fx==="opr"?" - click one of your rooks.":c.fx==="th"?" - click a piece to teleport home.":c.fx==="sh"?" - click a piece to shield.":" - click a piece. (Click card again to cancel)");
   showCardButtons(true,false);renderBD();renderMC();
 }
 
@@ -600,11 +643,33 @@ function handleTarget(r,c){
     logMsg="Pawn Double Step ready. Click Confirm to play.";
     showCardButtons(true,true);renderBD();renderMC();return;
   }
-  if(fx==="sm"||fx==="ff"||fx==="xr"||fx==="km"){
+  if(fx==="sm"||fx==="ff"||fx==="xr"){
     if(!piece||piece[0]!==color){logMsg="Pick one of your own pieces.";renderMC();return;}
     waitT=false;cardActive=true;sel=[r,c];
     logMsg="Now click the destination square.";
     showCardButtons(true,false);renderBD();renderMC();return;
+  }
+  if(fx==="sh"){
+    if(!piece||piece[0]!==color){logMsg="Pick one of your pieces.";renderMC();return;}
+    pendingCard={type:"sh",r:r,c:c,cardIdx:actI};waitT=false;
+    logMsg="Piece Shield ready. Click Confirm.";
+    showCardButtons(true,true);renderBD();renderMC();return;
+  }
+  if(fx==="th"){
+    if(!thFirst){
+      if(!piece||piece[0]!==color){logMsg="Pick one of your pieces.";renderMC();return;}
+      if(piece[1]==="K"){logMsg="Cannot teleport the king.";renderMC();return;}
+      thFirst=[r,c];
+      logMsg="Now click an empty square on your last row.";
+      renderBD();renderMC();return;
+    }
+    var lr=color==="w"?7:0;
+    if(r!==lr){logMsg="Must pick your last row.";renderMC();return;}
+    if(BD[r][c]){logMsg="Square must be empty.";renderMC();return;}
+    pendingCard={type:"th",fr:thFirst[0],fc:thFirst[1],tr:r,tc:c,cardIdx:actI};
+    thFirst=null;waitT=false;
+    logMsg="Teleport Home ready. Click Confirm.";
+    showCardButtons(true,true);renderBD();renderMC();return;
   }
   if(fx==="opr"){
     if(!piece||piece[0]!==color||piece[1]!=="R"){logMsg="Pick one of your rooks.";renderMC();return;}
@@ -651,16 +716,23 @@ function cardMvs(r,c,fx){
   var piece=BD[r][c];if(!piece)return[];
   var color=piece[0],type=piece[1],m=[];
   var diags=[[-1,-1],[-1,1],[1,-1],[1,1]],straights=[[-1,0],[1,0],[0,-1],[0,1]];
-  if(fx==="km"||fx==="opr"){
+  if(fx==="opr"){
     var allD=diags.concat(straights);
     for(var d=0;d<allD.length;d++){
       var nr=r+allD[d][0],nc=c+allD[d][1];
       while(nr>=0&&nr<8&&nc>=0&&nc<8){
-        if(BD[nr][nc]){if(BD[nr][nc][0]!==color)m.push([nr,nc]);break;}
+        var occK=BD[nr][nc];
+        if(occK){
+          if(occK[0]!==color&&occK[1]!=="K"){
+            var _shK=occK[0]==="w"?shieldedW:shieldedB;
+            if(!_shK[nr+","+nc])m.push([nr,nc]);
+          }
+          break;
+        }
         m.push([nr,nc]);nr+=allD[d][0];nc+=allD[d][1];
       }
     }
-    return m.filter(function(mv){var tg=BD[mv[0]][mv[1]];return !(tg&&tg[1]==="K");});
+    return m;
   }
   function slide(dirs){
     for(var d=0;d<dirs.length;d++){
@@ -708,7 +780,7 @@ function cardMvs(r,c,fx){
   if(type==="B"||type==="Q"){slide(diags);}
   if(type==="R"||type==="Q"){slide(straights);}
   if(type==="K"){step([[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]);}
-  return m.filter(function(mv){var tg=BD[mv[0]][mv[1]];return !(tg&&tg[1]==="K");});
+  return m.filter(function(mv){var tg=BD[mv[0]][mv[1]];if(tg&&tg[1]==="K")return false;if(tg){var sh=tg[0]==="w"?shieldedW:shieldedB;if(sh[mv[0]+","+mv[1]])return false;}return true;});
 }
 
 function qRaw(r,c){
@@ -748,13 +820,22 @@ function makeMove(fr,fc,tr,tc){canCounterIntel=false;
 
 function endTurn(){
   if(turn==="w") mvW++; else mvB++;
+  var flipped=!xTurn;
   if(xTurn){xTurn=false;logMsg="Extra turn!";}
   else{turn=turn==="w"?"b":"w";}
-  var jj=turn==="w"?jailedW:jailedB;
-  for(var jk in jj){
-    var jp=jk.split(","),jr=+jp[0],jc=+jp[1];
-    if(!BD[jr][jc]||BD[jr][jc][0]!==turn){delete jj[jk];continue;}
-    jj[jk]--;if(jj[jk]<=0)delete jj[jk];
+  if(flipped){
+    var jj=turn==="w"?jailedW:jailedB;
+    for(var jk in jj){
+      var jp=jk.split(","),jr=+jp[0],jc=+jp[1];
+      if(!BD[jr][jc]||BD[jr][jc][0]!==turn){delete jj[jk];continue;}
+      jj[jk]--;if(jj[jk]<=0)delete jj[jk];
+    }
+    var sh2=turn==="w"?shieldedW:shieldedB;
+    for(var sk in sh2){
+      var sp=sk.split(","),sr=+sp[0],sccc=+sp[1];
+      if(!BD[sr][sccc]){delete sh2[sk];continue;}
+      sh2[sk]--;if(sh2[sk]<=0)delete sh2[sk];
+    }
   }
   sel=null;actI=null;actFx=null;waitT=false;cardActive=false;
   updStatus();renderBD();renderMC();renderOC2();
@@ -826,6 +907,9 @@ function handleRemote(data){
   else if(t==="card_ps"){takeSnapshot();BD[p.r][p.c]=null;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent sacrificed a pawn!";endTurn();renderBD();maybeOfferCI("Pawn Sacrifice");}
   else if(t==="card_pd"){takeSnapshot();BD[p.tr][p.tc]=BD[p.fr][p.fc];BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent double-stepped a pawn!";endTurn();renderBD();maybeOfferCI("Pawn Double Step");}
   else if(t==="card_move"){takeSnapshot();capt=p.capt;BD[p.to[0]][p.to[1]]=BD[p.from[0]][p.from[1]];BD[p.from[0]][p.from[1]]=null;lastMv=[p.from[0],p.from[1],p.to[0],p.to[1]];hands[p.player]=hands[p.player].filter(function(_,i){return i!==p.cardIdx;});logMsg="Opponent played a card!";endTurn();renderBD();maybeOfferCI("a card");}
+  else if(t==="card_shield"){takeSnapshot();var scr=BD[p.r][p.c][0];(scr==="w"?shieldedW:shieldedB)[p.r+","+p.c]=2;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Piece Shield!";endTurn();renderBD();maybeOfferCI("Piece Shield");}
+  else if(t==="card_th"){takeSnapshot();BD[p.tr][p.tc]=BD[p.fr][p.fc];BD[p.fr][p.fc]=null;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Teleport Home!";endTurn();renderBD();maybeOfferCI("Teleport Home");}
+  else if(t==="card_storm"){takeSnapshot();for(var _mi=0;_mi<p.moves.length;_mi++){var _mm=p.moves[_mi];BD[_mm[2]][_mm[3]]=BD[_mm[0]][_mm[1]];BD[_mm[0]][_mm[1]]=null;}hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Pawn Storm!";endTurn();renderBD();maybeOfferCI("Pawn Storm");}
   else if(t==="card_bks"){takeSnapshot();var fpbks=BD[p.fr][p.fc],tpbks=BD[p.tr][p.tc];BD[p.fr][p.fc]=tpbks;BD[p.tr][p.tc]=fpbks;lastMv=[p.fr,p.fc,p.tr,p.tc];hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Bishop-Knight Swap!";endTurn();renderBD();maybeOfferCI("Bishop-Knight Swap");}
   else if(t==="card_jail"){takeSnapshot();var vcr=BD[p.r][p.c][0];(vcr==="w"?jailedW:jailedB)[p.r+","+p.c]=3;hands[p.player].splice(p.cardIdx,1);logMsg="Opponent used Go to Jail!";endTurn();renderBD();maybeOfferCI("Go to Jail");}
   else if(t==="counter_intel"){canCounterIntel=false;restoreSnapshot();hands[p.player].splice(p.ciIdx,1);actI=null;actFx=null;waitT=false;sel=null;cardActive=false;pendingCard=null;showCardButtons(false,false);logMsg="Opponent played Counter Intel! Your card was negated.";updStatus();renderBD();renderMC();renderOC2();}
@@ -855,7 +939,7 @@ function legalMvs(r,c){
     if(cR[color+"K"]&&!BD[r][5]&&!BD[r][6]) mvs.push([r,6]);
     if(cR[color+"Q"]&&!BD[r][1]&&!BD[r][2]&&!BD[r][3]) mvs.push([r,2]);
   }
-  return mvs.filter(function(m){var s=BD[m[0]][m[1]];BD[m[0]][m[1]]=piece;BD[r][c]=null;var ic=isInCheck(color);BD[r][c]=piece;BD[m[0]][m[1]]=s;return!ic;});
+  return mvs.filter(function(m){var tg=BD[m[0]][m[1]];if(tg&&tg[0]!==color){var sh=tg[0]==="w"?shieldedW:shieldedB;if(sh[m[0]+","+m[1]])return false;}var s=tg;BD[m[0]][m[1]]=piece;BD[r][c]=null;var ic=isInCheck(color);BD[r][c]=piece;BD[m[0]][m[1]]=s;return!ic;});
 }
 
 function rawMvs(r,c){
