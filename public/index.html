@@ -430,7 +430,8 @@ function renderMC(){
 function renderOC2(){
   var oppHand=hands[myNum===1?2:1];
   var row=document.getElementById("oppRow");row.innerHTML="";
-  for(var i=0;i<oppHand.length;i++) row.appendChild(mkOC(oppHand[i]));
+  row.style.gap="7px";
+  for(var i=0;i<oppHand.length;i++) row.appendChild(mkCard(oppHand[i],null,"locked"));
 }
 
 var pendingCard=null,preCard=null,canCounterIntel=false,bksFirst=null,thFirst=null,jailedW={},jailedB={},shieldedW={},shieldedB={};
