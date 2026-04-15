@@ -325,7 +325,7 @@ function pokerAct(act){
   var p=myNum,opp=p===1?2:1;
   var ca=Math.max(bets[1],bets[2])-bets[p];
   document.getElementById("raiseRow").style.display="none";
-  if(act==="fold"){emit("poker_fold",{winner:opp});chips[opp]+=pot;showResult(opp,"fold");return;}
+  if(act==="fold"){chips[opp]+=pot;emit("poker_fold",{winner:opp,chips:chips});showResult(opp,"fold");return;}
   if(act==="check"){
     if(bets[1]!==bets[2]){alert("Cannot check");return;}
     if(pkPhase==="p2"){emit("poker_check_final",{});doShowdown();return;}
@@ -892,7 +892,7 @@ function resignGame(){if(confirm("Resign?")){var w=myNum===1?2:1;emit("resign",{
 function handleRemote(data){
   var t=data.type,p=data.payload;
   if(t==="sync_poker"){chips=p.chips;pot=p.pot;bets=p.bets;roundN=p.roundN;pkTurn=p.pkTurn;pkPhase=p.pkPhase;hands=p.hands;isMyPokerTurn=(myNum===pkTurn);show("s-poker");setLabels();updPoker();renderPkCards();showTurnBanner();document.getElementById("pkLog").textContent="Round "+roundN+" started!";}
-  else if(t==="poker_fold"){chips[p.winner]+=pot;showResult(p.winner,"fold");}
+  else if(t==="poker_fold"){if(p.chips)chips=p.chips;else chips[p.winner]+=pot;showResult(p.winner,"fold");}
   else if(t==="poker_check"){pkPhase=p.pkPhase;pkTurn=p.pkTurn;isMyPokerTurn=(myNum===pkTurn);document.getElementById("pkLog").textContent="Opponent checked.";showTurnBanner();updPoker();}
   else if(t==="poker_check_final"){doShowdown();}
   else if(t==="poker_call"){chips=p.chips;pot=p.pot;bets=p.bets;updPoker();doShowdown();}
