@@ -169,7 +169,7 @@ input.inp{width:100%;padding:10px 12px;font-size:14px;border:1px solid #ddd;bord
     <div class="sdp"><h4 id="sdP1lbl">Player 1 - White</h4><div id="sdP1" style="display:flex;flex-direction:column;gap:5px"></div></div>
     <div class="sdp"><h4 id="sdP2lbl">Player 2 - Black</h4><div id="sdP2" style="display:flex;flex-direction:column;gap:5px"></div></div>
   </div>
-  <div class="clean-note" style="margin-bottom:12px">Checkmate must be a normal move - power cards cannot deliver the final blow</div>
+  <div class="clean-note" style="margin-bottom:12px">Cards can deliver checkmate - anything goes!</div>
   <button class="btn btn-dark" id="beginBtn" style="display:none">Begin chess game</button>
   <div class="wait-banner" id="sdWait" style="display:none">Waiting for opponent to start chess...</div>
 </div>
@@ -605,10 +605,6 @@ function handleClick(r,c){
     var mvs=cardMvs(sel[0],sel[1],actFx);
     for(var i=0;i<mvs.length;i++){
       if(mvs[i][0]===r&&mvs[i][1]===c){
-        if(wouldCMCard(sel[0],sel[1],r,c)){
-          document.getElementById("illBanner").style.display="block";
-          logMsg="Not allowed - checkmate must be a clean move.";renderMC();return;
-        }
         pendingCard={type:"move",fr:sel[0],fc:sel[1],tr:r,tc:c,fx:actFx,cardIdx:actI};
         logMsg="Card move ready. Click Confirm to play.";
         showCardButtons(true,true);renderBD();renderMC();return;
